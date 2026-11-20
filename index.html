@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NERO MARKET - مقارنة الأسعار</title>
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="/static/manifest.json">
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,sans-serif}
+body{background:#0d1117;color:#e6edf3;line-height:1.6}
+header{background:#161b22;text-align:center;padding:2rem 1rem;border-bottom:1px solid #30363d}
+header h1{color:#58a6ff;letter-spacing:2px}
+header p,small,footer{color:#8b949e}
+main{max-width:880px;margin:2rem auto;padding:0 1rem;display:flex;flex-direction:column;gap:1.5rem}
+section{background:#161b22;padding:1.5rem;border-radius:10px;border:1px solid #30363d}
+h2{color:#58a6ff;font-size:1.2rem;margin-bottom:1rem}
+input,select{width:100%;padding:.75rem 1rem;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:1rem}
+button{padding:.55rem .9rem;background:#238636;color:white;border:0;border-radius:6px;cursor:pointer;font-weight:600}
+button:hover{background:#2ea043}
+.search-grid{display:grid;grid-template-columns:2fr 1fr;gap:.75rem}
+.form-grid{display:grid;grid-template-columns:1.2fr 1.1fr .8fr auto;gap:.75rem}
+.section-header,.stats-strip,.card-actions,.sort-bar{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap}
+.stats-strip{padding:.75rem;background:#0d1117;margin-bottom:1rem;border-radius:8px;color:#8b949e}
+.product-card,.basket-item{display:flex;justify-content:space-between;align-items:center;background:#0d1117;padding:1rem;border-radius:8px;border:1px solid #30363d;margin-bottom:.75rem;gap:1rem;flex-wrap:wrap}
+.product-card small,.basket-item small{display:block;margin-top:.25rem}
+.sort-btn,.btn-secondary,.qty-btn{background:#21262d;border:1px solid #30363d;color:#c9d1d9}
+.sort-btn.active{background:#1f6feb}
+.btn-edit{background:#1f6feb}
+.btn-delete{background:#da3633}
+.cheapest-badge{background:#238636;padding:2px 8px;border-radius:12px;font-size:.75rem}
+.compare-badge{background:#1f6feb;padding:2px 8px;border-radius:12px;font-size:.75rem}
+.savings-text{display:block;color:#3fb950;font-size:.85rem}
+.updated-meta{display:block;color:#7d8590;font-size:.78rem}
+.qty-controls{display:flex;align-items:center;gap:.5rem}
+.qty-count{min-width:25px;text-align:center}
+.basket-summary-box{padding:1rem;margin-top:1rem;background:#0d1117;border-radius:8px}
+#totalPrice{color:#58a6ff;font-weight:bold;font-size:1.1rem}
+#basketComparisonNote{color:#3fb950;margin-top:.5rem}
+footer{text-align:center;padding:1.5rem}
+.admin-status-badge{padding:.3rem .7rem;border:1px solid #30363d;border-radius:20px}
+.admin-status-badge.active{color:#3fb950}
+@media(max-width:700px){
+.search-grid,.form-grid{grid-template-columns:1fr}
+.product-card,.basket-item{align-items:flex-start}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>NERO MARKET</h1>
+<p>مقارنة الأسعار الذكية بين المتاجر في المملكة العربية السعودية (SAR)</p>
+<div style="margin-top:12px">
+<span id="adminBadge" class="admin-status-badge">وضع الزائر</span>
+<button id="adminToggleBtn" class="btn-secondary">دخول الإدارة</button>
+</div>
+</header>
+
+<main>
+
+<section>
+<h2>ابحث عن أي منتج</h2>
+<div class="search-grid">
+<input id="searchInput" placeholder="مثلاً: بطاطس، تفاح، أرز، دجاج...">
+<select id="storeFilter">
+<option value="">كل المتاجر</option>
+</select>
+</div>
+<p style="color:#8b949e;font-size:.8rem;margin-top:8px">
+يدعم البحث العربي والمرادفات واختلاف كتابة أسماء المنتجات.
+</p>
+</section>
+
+<section>
+<h2>إضافة منتج أو سعر جديد</h2>
+<form id="addProductForm" class="form-grid">
+<input id="newName" list="productSuggestions" placeholder="اسم المنتج" required>
+<input id="newStore" list="saudiStoresList" placeholder="اسم المتجر" required>
+<input id="newPrice" type="number" min=".01" step=".01" placeholder="السعر بالريال" required>
+<button type="submit">حفظ السعر</button>
+</form>
+<datalist id="productSuggestions"></datalist>
+<datalist id="saudiStoresList"></datalist>
+</section>
+
+<section>
+<div class="section-header">
+<h2>المنتجات المتاحة</h2>
+<div class="sort-bar">
+<button class="sort-btn active" data-sort="price_asc">الأرخص</button>
+<button class="sort-btn" data-sort="price_desc">الأغلى</button>
+<button class="sort-btn" data-sort="savings_desc">أعلى توفير</button>
+<button class="sort-btn" data-sort="group_name">حسب المنتج</button>
+</div>
+</div>
+<div class="stats-strip">
+<div id="catalogSummary">جاري التحميل...</div>
+<div>
+<button id="exportCsvBtn" class="btn-secondary">CSV</button>
+<button id="exportJsonBtn" class="btn-secondary">JSON</button>
+</div>
+</div>
+<div id="productList"></div>
+</section>
+
+<section>
+<div class="section-header">
+<h2>سلة المشتريات الذكية</h2>
+<button id="clearBasketBtn" class="btn-secondary">تفريغ السلة</button>
+</div>
+<div id="basketList"></div>
+<div class="basket-summary-box">
+<div id="totalPrice">الإجمالي: 0.00 ريال</div>
+<div id="basketComparisonNote"></div>
+</div>
+</section>
+
+</main>
+
+<footer>NERO MARKET - مقارنة الأسعار الاقتصادية</footer>
+
+<script>
+"use strict";
+
+const API_URL="/api/products";
+
+/* =========================
+   المتاجر
+========================= */
+
+const SAUDI_STORES=[
+"بنده","هايبر بنده","أسواق عبدالله العثيم",
+"الدانوب","أسواق التميمي","كارفور",
+"لولو هايبرماركت","مانويل","أسواق السدحان",
+"أسواق الراية","أسواق المزرعة","بن داود",
+"نستو","سبار","أسواق الجزيرة","نينجا",
+"هنقرستيشن ماركت","جاهز ماركت","نعناع",
+"تموينات محلية"
+];
+
+/* =========================
+   قاموس المنتجات
+========================= */
+
+const PRODUCT_CATEGORIES={
+"الخضروات":[
+"بطاطس","بطاطا","طماطم","بندورة","خيار","كوسة","كوسا",
+"جزر","بصل","ثوم","فلفل أخضر","فلفل أحمر",
+"فلفل رومي","فلفل حار","باذنجان","بتنجان",
+"خس","جرجير","سبانخ","ملوخية","بامية",
+"قرنبيط","زهرة","بروكلي","ملفوف","كرنب",
+"فجل","لفت","شمندر","بنجر","ذرة",
+"فاصوليا خضراء","بازلاء","بسلة","كرفس",
+"بقدونس","كزبرة","شبت","نعناع","ريحان",
+"كراث","فطر","مشروم","قرع","يقطين"
+],
+
+"الفواكه":[
+"تفاح","موز","برتقال","يوسفي","مندرين",
+"ليمون","ليمون أخضر","عنب","فراولة",
+"مانجو","بطيخ","حبحب","شمام","كنتالوب",
+"أناناس","كيوي","خوخ","مشمش","كمثرى",
+"إجاص","رمان","تين","تمر","بلح",
+"جوافة","بابايا","أفوكادو","كرز",
+"توت","توت أزرق","توت أسود","توت أحمر",
+"جريب فروت","نارنج","برقوق","قشطة",
+"جوز هند","فاكهة التنين","كاكا"
+],
+
+"اللحوم والدواجن":[
+"دجاج","فراخ","صدور دجاج","أفخاذ دجاج",
+"أجنحة دجاج","دجاج كامل","لحم بقري",
+"لحم غنم","لحم ضأن","لحم مفروم",
+"لحم عجل","ريش غنم","كبدة","كبدة دجاج",
+"سجق","نقانق","برجر لحم","برجر دجاج",
+"ستيك","كفتة","شيش طاووق","شاورما"
+],
+
+"الأسماك والمأكولات البحرية":[
+"سمك","سمك هامور","سلمون","تونة",
+"روبيان","جمبري","سردين","فيليه سمك",
+"كاليماري","حبار","سلطعون","كابوريا",
+"بلح البحر"
+],
+
+"الألبان والبيض":[
+"حليب","لبن","زبادي","روب","لبنة",
+"جبنة","جبنة شيدر","جبنة بيضاء",
+"جبنة موزاريلا","جبنة كريمية",
+"قشطة","كريمة","زبدة","بيض",
+"حليب بودرة","حليب مكثف","لبن رايب"
+],
+
+"الحبوب والبقوليات":[
+"أرز","رز","أرز بسمتي","أرز مصري",
+"أرز مزة","قمح","برغل","شعير",
+"عدس","عدس أحمر","عدس أخضر",
+"حمص","فول","فاصوليا","لوبيا",
+"بازلاء مجففة","كينوا","شوفان"
+],
+
+"المخبوزات":[
+"خبز","عيش","خبز عربي","خبز أسمر",
+"خبز أبيض","خبز توست","توست",
+"صامولي","صمون","خبز برجر",
+"خبز تورتيلا","كرواسون","كعك",
+"بسكويت","كيك","معمول","فطائر"
+],
+
+"المواد الغذائية":[
+"سكر","دقيق","طحين","نشا","ملح",
+"زيت","زيت زيتون","زيت ذرة",
+"زيت دوار الشمس","سمن","خل",
+"معجون طماطم","صلصة طماطم",
+"مكرونة","معكرونة","شعيرية",
+"كاتشب","مايونيز","خردل",
+"عسل","مربى","طحينة",
+"زبدة فول سوداني","كاكاو",
+"بهارات","فلفل أسود","كمون",
+"كركم","قرفة","هيل","زعفران",
+"شاي","قهوة","قهوة عربية",
+"نسكافيه","تمر","مكسرات","لوز",
+"جوز","فستق","كاجو","زبيب"
+],
+
+"المشروبات":[
+"ماء","مياه","عصير","عصير برتقال",
+"عصير تفاح","عصير مانجو","مشروبات غازية",
+"حليب بالشوكولاتة","مشروب طاقة",
+"شاي مثلج","قهوة باردة"
+],
+
+"المجمدات":[
+"خضروات مجمدة","بطاطس مجمدة",
+"دجاج مجمد","لحم مجمد","سمك مجمد",
+"آيس كريم","بيتزا مجمدة","بازلاء مجمدة"
+],
+
+"المنظفات والعناية":[
+"مسحوق غسيل","منظف ملابس","صابون",
+"سائل غسيل الصحون","منظف أرضيات",
+"مطهر","شامبو","بلسم","معجون أسنان",
+"فرشاة أسنان","مناديل","ورق مطبخ",
+"مناديل مبللة","حفاضات","معقم يدين",
+"سائل استحمام","مزيل عرق"
+]
+};
+
+const COMMON_SAUDI_PRODUCTS=
+Object.values(PRODUCT_CATEGORIES).flat();
+
+/* =========================
+   المرادفات
+========================= */
+
+const PRODUCT_SEARCH_SYNONYMS=[
+["بطاطس","بطاطا"],
+["رز","أرز"],
+["طماطم","بندورة"],
+["خيار","قثاء"],
+["كوسة","كوسا"],
+["باذنجان","بتنجان"],
+["قرنبيط","زهرة"],
+["ملفوف","كرنب"],
+["شمندر","بنجر"],
+["بازلاء","بسلة"],
+["فطر","مشروم"],
+["بطيخ","حبحب"],
+["كمثرى","إجاص"],
+["يوسفي","مندرين"],
+["ليمون","حامض"],
+["موز","موز"],
+["دجاج","فراخ"],
+["جمبري","روبيان"],
+["سجق","نقانق"],
+["خبز","عيش"],
+["توست","خبز توست"],
+["طحين","دقيق"],
+["مكرونة","معكرونة"],
+["لبن","روب"],
+["زبادي","روب"],
+["ماء","مياه"],
+["نسكافيه","قهوة سريعة التحضير"],
+["كزبرة","كسبرة"],
+["كبدة","كبد"],
+["فول","فول مدمس"],
+["شاي","شاي أكياس"]
+];
+
+/* =========================
+   توحيد النص العربي
+========================= */
+
+function normalizeProductName(name){
+return String(name||"")
+.toLowerCase()
+.normalize("NFKC")
+.replace(/[\u064B-\u065F\u0670\u0640]/g,"")
+.replace(/[أإآٱ]/g,"ا")
+.replace(/ؤ/g,"و")
+.replace(/ئ/g,"ي")
+.replace(/ة/g,"ه")
+.replace(/ى/g,"ي")
+.replace(/[^\u0621-\u064A0-9]/g,"")
+.trim();
+}
+
+function getSearchTerms(query){
+const normalized=normalizeProductName(query);
+if(!normalized)return[];
+
+const terms=new Set([normalized]);
+
+PRODUCT_SEARCH_SYNONYMS.forEach(function(group){
+const aliases=group.map(normalizeProductName);
+
+if(aliases.some(function(alias){
+return alias===normalized ||
+(alias.length>=3 && normalized.length>=3 &&
+(alias.includes(normalized)||normalized.includes(alias)));
+})){
+aliases.forEach(function(alias){terms.add(alias);});
+}
+});
+
+return Array.from(terms);
+}
+
+function matchesProduct(product,query){
+const name=normalizeProductName(product.name);
+const store=normalizeProductName(product.store);
+const terms=getSearchTerms(query);
+
+return terms.some(function(term){
+return name.includes(term)||store.includes(term);
+});
+}
+
+/* =========================
+   الحالة العامة
+========================= */
+
+let products=[];
+let basket=(JSON.parse(localStorage.getItem("nero_basket"))||[]).map(function(i){
+return{
+name:String(i.name||""),
+store:String(i.store||""),
+price:Number(i.price)||0,
+qty:Math.max(1,parseInt(i.qty,10)||1)
+};
+});
+
+let currentSort="price_asc";
+let adminToken=localStorage.getItem("nero_admin_token")||"";
+let isAdmin=false;
+
+const $=id=>document.getElementById(id);
+
+function escapeHtml(text){
+return String(text||"")
+.replace(/&/g,"&amp;")
+.replace(/</g,"&lt;")
+.replace(/>/g,"&gt;")
+.replace(/"/g,"&quot;")
+.replace(/'/g,"&#39;");
+}
+
+function saveBasket(){
+localStorage.setItem("nero_basket",JSON.stringify(basket));
+}
+
+/* =========================
+   الإدارة
+========================= */
+
+function updateAdminUi(){
+$("adminBadge").textContent=isAdmin?"وضع الإدارة نشط":"وضع الزائر";
+$("adminBadge").classList.toggle("active",isAdmin);
+$("adminToggleBtn").textContent=isAdmin?"تسجيل خروج الإدارة":"دخول الإدارة";
+
+document.querySelectorAll(".btn-edit,.btn-delete").forEach(function(b){
+b.style.display=isAdmin?"inline-block":"none";
+});
+}
+
+async function checkAdminStatus(){
+if(!adminToken){
+isAdmin=false;
+updateAdminUi();
+return;
+}
+
+try{
+const res=await fetch("/api/admin/status",{
+headers:{"Authorization":"Bearer "+adminToken}
+});
+const data=await res.json();
+isAdmin=Boolean(data.authenticated);
+
+if(!isAdmin){
+adminToken="";
+localStorage.removeItem("nero_admin_token");
+}
+}catch(e){isAdmin=false;}
+
+updateAdminUi();
+}
+
+$("adminToggleBtn").addEventListener("click",async function(){
+if(isAdmin){
+adminToken="";
+isAdmin=false;
+localStorage.removeItem("nero_admin_token");
+updateAdminUi();
+return;
+}
+
+const pass=prompt("أدخل كلمة مرور الإدارة:");
+if(!pass)return;
+
+try{
+const res=await fetch("/api/admin/login",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({password:pass})
+});
+const data=await res.json();
+
+if(!res.ok||!data.token){
+alert(data.error||"فشل تسجيل الدخول");
+return;
+}
+
+adminToken=data.token;
+localStorage.setItem("nero_admin_token",adminToken);
+isAdmin=true;
+updateAdminUi();
+displayProducts(getFilteredAndSortedProducts());
+
+}catch(e){alert("تعذر الاتصال بالخادم");}
+});
+
+/* =========================
+   القوائم
+========================= */
+
+function refreshStoresAndSuggestions(){
+const dbStores=products.map(p=>p.store.trim()).filter(Boolean);
+const stores=Array.from(new Set(SAUDI_STORES.concat(dbStores)));
+
+$("saudiStoresList").innerHTML=stores.map(s=>
+'<option value="'+escapeHtml(s)+'"></option>').join("");
+
+const previous=$("storeFilter").value;
+const active=Array.from(new Set(dbStores)).sort();
+
+$("storeFilter").innerHTML=
+'<option value="">كل المتاجر ('+active.length+')</option>'+
+active.map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>').join("");
+
+if(active.includes(previous))$("storeFilter").value=previous;
+
+const names=Array.from(new Set(
+products.map(p=>p.name.trim()).filter(Boolean).concat(COMMON_SAUDI_PRODUCTS)
+));
+
+$("productSuggestions").innerHTML=names.map(n=>
+'<option value="'+escapeHtml(n)+'"></option>').join("");
+}
+
+/* =========================
+   مقارنة الأسعار
+========================= */
+
+function getComparisonStats(product){
+const key=normalizeProductName(product.name);
+const same=products.filter(p=>normalizeProductName(p.name)===key);
+
+const prices=same.map(p=>p.price);
+const min=Math.min.apply(null,prices);
+const max=Math.max.apply(null,prices);
+
+return{
+key:key,
+offersCount:same.length,
+minPrice:min,
+maxPrice:max,
+savingsVsMax:Math.max(0,max-product.price),
+isCheapestForProduct:same.length>1&&product.price===min&&min<max
+};
+}
+
+/* =========================
+   البحث والترتيب
+========================= */
+
+function getFilteredAndSortedProducts(){
+const query=$("searchInput").value.trim();
+const store=$("storeFilter").value;
+
+const filtered=products.filter(function(p){
+if(store&&p.store!==store)return false;
+if(!query)return true;
+return matchesProduct(p,query);
+});
+
+return filtered.sort(function(a,b){
+const sa=getComparisonStats(a);
+const sb=getComparisonStats(b);
+
+if(currentSort==="price_desc")return b.price-a.price;
+
+if(currentSort==="savings_desc"){
+return sb.savingsVsMax-sa.savingsVsMax||a.price-b.price;
+}
+
+if(currentSort==="group_name"){
+return sa.key.localeCompare(sb.key,"ar")||a.price-b.price;
+}
+
+return a.price-b.price;
+});
+}
+
+/* =========================
+   تحميل المنتجات
+========================= */
+
+async function loadProducts(){
+$("productList").innerHTML="<p>جاري تحميل المنتجات...</p>";
+
+try{
+const res=await fetch(API_URL);
+if(!res.ok)throw new Error("API error");
+
+const data=await res.json();
+
+products=(Array.isArray(data)?data:[]).map(function(p){
+return{
+id:p.id,
+name:String(p.name||""),
+store:String(p.store||""),
+price:Number(p.price),
+updated_at:String(p.updated_at||"")
+};
+});
+
+refreshStoresAndSuggestions();
+displayProducts(getFilteredAndSortedProducts());
+await checkAdminStatus();
+updateBasket();
+
+}catch(e){
+$("productList").innerHTML=
+"<p style='color:#f85149'>تعذر الاتصال بقاعدة البيانات. تأكد من تشغيل app.py.</p>";
+}
+}
+
+/* =========================
+   عرض المنتجات
+========================= */
+
+function displayProducts(items){
+$("productList").innerHTML="";
+
+const unique=new Set(products.map(p=>normalizeProductName(p.name)));
+const stores=new Set(products.map(p=>p.store));
+
+$("catalogSummary").innerHTML=
+"المعروض: <strong>"+items.length+"</strong> | الأصناف: <strong>"+
+unique.size+"</strong> | المتاجر: <strong>"+stores.size+"</strong>";
+
+if(items.length===0){
+$("productList").innerHTML=
+"<p style='text-align:center;color:#8b949e'>لا توجد منتجات مطابقة. تأكد من تسجيل المنتج أولاً.</p>";
+return;
+}
+
+items.forEach(function(p){
+const stats=getComparisonStats(p);
+const div=document.createElement("div");
+div.className="product-card";
+
+if(stats.isCheapestForProduct)div.style.border="2px solid #2ea043";
+
+const info=document.createElement("div");
+
+info.innerHTML=
+"<strong>"+escapeHtml(p.name)+"</strong>"+
+(stats.isCheapestForProduct?'<span class="cheapest-badge">الأرخص</span>':"")+
+(stats.offersCount>1?'<span class="compare-badge">'+stats.offersCount+' متاجر</span>':"")+
+"<small>المتجر: "+escapeHtml(p.store)+
+" | السعر: <strong>"+p.price.toFixed(2)+" ريال</strong></small>"+
+(stats.savingsVsMax>0?
+'<span class="savings-text">التوفير: '+stats.savingsVsMax.toFixed(2)+' ريال</span>':"")+
+'<span class="updated-meta">'+escapeHtml(p.updated_at)+'</span>';
+
+const actions=document.createElement("div");
+actions.className="card-actions";
+
+const add=document.createElement("button");
+add.textContent="إضافة للسلة";
+add.onclick=()=>addToBasket(p.name,p.store,p.price);
+actions.appendChild(add);
+
+if(isAdmin){
+const edit=document.createElement("button");
+edit.className="btn-edit";
+edit.textContent="تعديل السعر";
+edit.onclick=()=>editProductPrice(p);
+actions.appendChild(edit);
+
+const del=document.createElement("button");
+del.className="btn-delete";
+del.textContent="حذف";
+del.onclick=()=>deleteProduct(p.id);
+actions.appendChild(del);
+}
+
+div.append(info,actions);
+$("productList").appendChild(div);
+});
+}
+
+/* =========================
+   إضافة منتج
+========================= */
+
+$("addProductForm").addEventListener("submit",async function(e){
+e.preventDefault();
+
+const name=$("newName").value.trim();
+const store=$("newStore").value.trim();
+const price=Number($("newPrice").value);
+
+if(!name||!store||!Number.isFinite(price)||price<=0)return;
+
+try{
+const res=await fetch(API_URL,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({name,store,price})
+});
+
+const result=await res.json();
+
+if(!res.ok){
+alert(result.error||"تعذر حفظ المنتج");
+return;
+}
+
+this.reset();
+await loadProducts();
+
+}catch(e){alert("حدث خطأ أثناء الحفظ");}
+});
+
+/* =========================
+   تعديل وحذف
+========================= */
+
+async function editProductPrice(p){
+if(!isAdmin)return;
+
+const value=prompt("السعر الجديد:",p.price.toFixed(2));
+if(value===null)return;
+
+const price=Number(value);
+if(!Number.isFinite(price)||price<=0){
+alert("أدخل سعراً صحيحاً");
+return;
+}
+
+try{
+const res=await fetch(API_URL+"/"+p.id,{
+method:"PUT",
+headers:{
+"Content-Type":"application/json",
+"Authorization":"Bearer "+adminToken
+},
+body:JSON.stringify({price})
+});
+
+const data=await res.json();
+if(!res.ok){alert(data.error||"تعذر التعديل");return;}
+await loadProducts();
+
+}catch(e){alert("حدث خطأ أثناء التعديل");}
+}
+
+async function deleteProduct(id){
+if(!isAdmin)return;
+if(!confirm("هل تريد حذف المنتج؟"))return;
+
+try{
+const res=await fetch(API_URL+"/"+id,{
+method:"DELETE",
+headers:{"Authorization":"Bearer "+adminToken}
+});
+
+const data=await res.json();
+if(!res.ok){alert(data.error||"تعذر الحذف");return;}
+await loadProducts();
+
+}catch(e){alert("حدث خطأ أثناء الحذف");}
+}
+
+/* =========================
+   السلة
+========================= */
+
+function addToBasket(name,store,price){
+const index=basket.findIndex(i=>i.name===name&&i.store===store);
+
+if(index>=0){
+basket[index].qty++;
+basket[index].price=price;
+}else{
+basket.push({name,store,price,qty:1});
+}
+
+saveBasket();
+updateBasket();
+}
+
+function changeBasketQty(index,delta){
+if(!basket[index])return;
+basket[index].qty+=delta;
+if(basket[index].qty<=0)basket.splice(index,1);
+saveBasket();
+updateBasket();
+}
+
+function removeFromBasket(index){
+basket.splice(index,1);
+saveBasket();
+updateBasket();
+}
+
+function calculateBestSingleStore(){
+if(!basket.length||!products.length)return null;
+
+const stores=[...new Set(products.map(p=>p.store))];
+let best=null;
+
+stores.forEach(store=>{
+let total=0;
+let complete=true;
+
+basket.forEach(item=>{
+const match=products.find(p=>
+p.store===store&&normalizeProductName(p.name)===normalizeProductName(item.name)
+);
+
+if(!match)complete=false;
+else total+=match.price*item.qty;
+});
+
+if(complete&&(!best||total<best.total)){
+best={store,total};
+}
+});
+
+return best;
+}
+
+function updateBasket(){
+$("basketList").innerHTML="";
+
+if(!basket.length){
+$("basketList").innerHTML="<p>السلة فارغة حالياً.</p>";
+$("totalPrice").textContent="الإجمالي: 0.00 ريال";
+$("basketComparisonNote").textContent="";
+return;
+}
+
+let total=0;
+let saved=0;
+
+basket.forEach(function(item,index){
+const line=item.price*item.qty;
+total+=line;
+
+const same=products.filter(p=>
+normalizeProductName(p.name)===normalizeProductName(item.name)
+);
+
+if(same.length>1){
+const max=Math.max(...same.map(p=>p.price));
+saved+=Math.max(0,max-item.price)*item.qty;
+}
+
+const div=document.createElement("div");
+div.className="basket-item";
+
+const info=document.createElement("div");
+info.innerHTML=
+"<strong>"+escapeHtml(item.name)+"</strong>"+
+"<small>"+escapeHtml(item.store)+" | الوحدة: "+
+item.price.toFixed(2)+" ريال | المجموع: "+line.toFixed(2)+" ريال</small>";
+
+const actions=document.createElement("div");
+actions.className="card-actions";
+
+const minus=document.createElement("button");
+minus.className="qty-btn";
+minus.textContent="-";
+minus.onclick=()=>changeBasketQty(index,-1);
+
+const count=document.createElement("span");
+count.className="qty-count";
+count.textContent=item.qty;
+
+const plus=document.createElement("button");
+plus.className="qty-btn";
+plus.textContent="+";
+plus.onclick=()=>changeBasketQty(index,1);
+
+const remove=document.createElement("button");
+remove.className="btn-delete";
+remove.textContent="حذف";
+remove.onclick=()=>removeFromBasket(index);
+
+const controls=document.createElement("div");
+controls.className="qty-controls";
+controls.append(minus,count,plus);
+
+actions.append(controls,remove);
+div.append(info,actions);
+$("basketList").appendChild(div);
+});
+
+$("totalPrice").textContent=
+"الإجمالي: "+total.toFixed(2)+" ريال"+
+(saved>0?" | التوفير: "+saved.toFixed(2)+" ريال":"");
+
+const best=calculateBestSingleStore();
+
+if(!best){
+$("basketComparisonNote").textContent=
+"لا يوجد متجر واحد مسجل لديه جميع أصناف السلة.";
+}else{
+const diff=best.total-total;
+
+$("basketComparisonNote").textContent=
+"أرخص متجر يوفر كامل السلة: "+best.store+
+" | الإجمالي: "+best.total.toFixed(2)+" ريال"+
+(diff>0?" | التوفير الحالي: "+diff.toFixed(2)+" ريال":
+diff<0?" | يمكن توفير "+Math.abs(diff).toFixed(2)+" ريال إضافية":"");
+}
+}
+
+/* =========================
+   الترتيب
+========================= */
+
+document.querySelectorAll(".sort-btn").forEach(btn=>{
+btn.addEventListener("click",function(){
+currentSort=this.dataset.sort;
+
+document.querySelectorAll(".sort-btn").forEach(b=>
+b.classList.remove("active"));
+
+this.classList.add("active");
+displayProducts(getFilteredAndSortedProducts());
+});
+});
+
+/* =========================
+   البحث
+========================= */
+
+$("searchInput").addEventListener("input",()=>{
+displayProducts(getFilteredAndSortedProducts());
+});
+
+$("storeFilter").addEventListener("change",()=>{
+displayProducts(getFilteredAndSortedProducts());
+});
+
+/* =========================
+   التصدير
+========================= */
+
+function downloadFile(content,filename,type){
+const blob=new Blob([content],{type});
+const url=URL.createObjectURL(blob);
+const a=document.createElement("a");
+a.href=url;
+a.download=filename;
+document.body.appendChild(a);
+a.click();
+a.remove();
+URL.revokeObjectURL(url);
+}
+
+$("exportCsvBtn").onclick=function(){
+if(!products.length){alert("لا توجد منتجات");return;}
+
+const rows=[["id","name","store","price","updated_at"]];
+
+products.forEach(p=>rows.push([
+p.id,p.name,p.store,p.price,p.updated_at
+]));
+
+const csv="\uFEFF"+rows.map(row=>
+row.map(value=>'"'+String(value).replace(/"/g,'""')+'"').join(",")
+).join("\n");
+
+downloadFile(csv,"nero_market_prices.csv","text/csv;charset=utf-8");
+};
+
+$("exportJsonBtn").onclick=function(){
+if(!products.length){alert("لا توجد منتجات");return;}
+
+downloadFile(
+JSON.stringify(products,null,2),
+"nero_market_prices.json",
+"application/json;charset=utf-8"
+);
+};
+
+/* =========================
+   تفريغ السلة
+========================= */
+
+$("clearBasketBtn").onclick=function(){
+if(!basket.length)return;
+if(!confirm("هل تريد تفريغ السلة؟"))return;
+basket=[];
+saveBasket();
+updateBasket();
+};
+
+/* =========================
+   Service Worker & بدء التطبيق
+========================= */
+
+if("serviceWorker" in navigator){
+window.addEventListener("load",function(){
+navigator.serviceWorker.register("/static/sw.js").catch(function(){});
+});
+}
+
+loadProducts();
+updateBasket();
+
+</script>
+</body>
+</html>
